@@ -35,13 +35,14 @@ from bno055 import registers
 from bno055.connectors.Connector import Connector
 from bno055.params.NodeParameters import NodeParameters
 
+
 from geometry_msgs.msg import Quaternion, Vector3
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from sensor_msgs.msg import Imu, MagneticField, Temperature
 from std_msgs.msg import String
 from example_interfaces.srv import Trigger
-
+from rcl_interfaces.msg import SetParametersResult, Parameter
 
 class SensorService:
     """Provide an interface for accessing the sensor's features & data."""
@@ -62,6 +63,7 @@ class SensorService:
         self.pub_temp = node.create_publisher(Temperature, prefix + 'temp', QoSProf)
         self.pub_calib_status = node.create_publisher(String, prefix + 'calib_status', QoSProf)
         self.srv = self.node.create_service(Trigger, prefix + 'calibration_request', self.calibration_request_callback)
+        node.add_on_set_parameters_callback(self.parametersCallback)
 
     def configure(self):
         """Configure the IMU sensor hardware."""
@@ -346,6 +348,27 @@ class SensorService:
                 calib_data['gyro_offset']['x'],
                 calib_data['gyro_offset']['y'],
                 calib_data['gyro_offset']['z']))
+        
+    def set_calib_offset_acc(self, acc_offset):
+        """
+        Write accelerometer calibration data (define as 16 bit signed hex).
+
+        :param acc_offset:
+        """
+        # Must switch to config mode to write out
+        if not (self.con.transmit(registers.BNO055_OPR_MODE_ADDR, 1, bytes([registers.OPERATION_MODE_CONFIG]))):
+            self.node.get_logger().error('Unable to set IMU into config mode')
+        sleep(0.025)
+        try:
+            self.con.transmit(registers.ACCEL_OFFSET_X_LSB_ADDR, 1, bytes([acc_offset.value[0] & 0xFF]))
+            self.con.transmit(registers.ACCEL_OFFSET_X_MSB_ADDR, 1, bytes([(acc_offset.value[0] >> 8) & 0xFF]))
+            self.con.transmit(registers.ACCEL_OFFSET_Y_LSB_ADDR, 1, bytes([acc_offset.value[1] & 0xFF]))
+            self.con.transmit(registers.ACCEL_OFFSET_Y_MSB_ADDR, 1, bytes([(acc_offset.value[1] >> 8) & 0xFF]))
+            self.con.transmit(registers.ACCEL_OFFSET_Z_LSB_ADDR, 1, bytes([acc_offset.value[2] & 0xFF]))
+            self.con.transmit(registers.ACCEL_OFFSET_Z_MSB_ADDR, 1, bytes([(acc_offset.value[2] >> 8) & 0xFF]))
+            return True
+        except Exception:  # noqa: B902
+            return False
 
     def set_calib_offsets(self, acc_offset, mag_offset, gyr_offset, mag_radius, acc_radius):
         """
@@ -408,3 +431,49 @@ class SensorService:
 
     def unpackBytesToFloat(self, start, end):
         return float(struct.unpack('h', struct.pack('BB', start, end))[0])
+    
+    def parametersCallback(self, parameters: list[Parameter]):
+        result = SetParametersResult()
+        #node.declare_parameter('offset_acc', value=registers.DEFAULT_OFFSET_ACC)
+        # +/- 6400 units (1 unit = 1/16 uT)
+        #node.declare_parameter('offset_mag', value=registers.DEFAULT_OFFSET_MAG)
+        # +/- 2000 units up to 32000 (dps range dependent)               (1 unit = 1/16 dps)
+        #node.declare_parameter('offset_gyr', value=registers.DEFAULT_OFFSET_GYR)
+        #: +/- 2000 units (at max 2G)    (1 unit = 1 mg = 1 LSB = 0.01 m/s2)
+        # DEFAULT_OFFSET_ACC = [0xFFEC, 0x00A5, 0xFFE8]
+        #: +/- 6400 units                (1 unit = 1/16 uT)
+        # DEFAULT_OFFSET_MAG = [0xFFB4, 0xFE9E, 0x027D]
+        #: +/- 2000 units up to 32000 (dps range dependent)               (1 unit = 1/16 dps)
+        # DEFAULT_OFFSET_GYR = [0x0002, 0xFFFF, 0xFFFF]
+        for param in parameters:
+            self.node.get_logger().debug(f"Current calibration data is {self.get_calib_data()}")
+            if param.name == 'offset_acc':
+                if(self.test_offset_parameters(param.value, param.name)):
+                    self.node.get_logger().info(f"Will attempt to set {param.name} to {param.value}")
+                    if(self.set_calib_offset_acc(param.value)):
+                        result.successful = True
+                        result.reason = f"Parameter {param.name} was set successfully."
+                        self.node.get_logger().info(result.reason)
+                    else:
+                        self.node.get_logger().warn(f"Could not write {param.name} with values {param.value} to EEPROM.")
+                        result.successful = False
+                        result.reason = f"Could not write {param.name} with values {param.value} to EEPROM."
+                else:
+                    result.successful = False
+                    result.reason = f"Parameter {param.name} was not provided correctly. Check warnings for details."
+                    self.node.get_logger().warn(result.reason)
+            else:
+                result.successful = False
+                result.reason = f"Parameter {param.name} is not implemented for run-time change."
+                self.node.get_logger().warn(result.reason)
+        return result
+
+    def test_offset_parameters(self, offset: list[int], param_name: str):
+        if len(offset) != 3:
+            self.node.get_logger().warn(f"Parameter {param_name} must have 3 values. {len(offset)} values are provided.")
+            return False
+        for i in range(3):
+            if offset[i] < 0 or offset[i] > 65535:
+                self.node.get_logger().warn(f"Parameter {param_name} must be in the range of 0 to 65535. Value {offset[i]} is not in the range.")
+                return False
+        return True
