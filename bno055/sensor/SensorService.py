@@ -34,15 +34,19 @@ from time import sleep
 from bno055 import registers
 from bno055.connectors.Connector import Connector
 from bno055.params.NodeParameters import NodeParameters
+import rclpy
+
+from typing import List
 
 
 from geometry_msgs.msg import Quaternion, Vector3
 from rclpy.node import Node
+import rclpy.parameter
 from rclpy.qos import QoSProfile
 from sensor_msgs.msg import Imu, MagneticField, Temperature
 from std_msgs.msg import String
 from example_interfaces.srv import Trigger
-from rcl_interfaces.msg import SetParametersResult, Parameter
+from rcl_interfaces.msg import SetParametersResult
 
 class SensorService:
     """Provide an interface for accessing the sensor's features & data."""
@@ -349,26 +353,6 @@ class SensorService:
                 calib_data['gyro_offset']['y'],
                 calib_data['gyro_offset']['z']))
         
-    def set_calib_offset_acc(self, acc_offset):
-        """
-        Write accelerometer calibration data (define as 16 bit signed hex).
-
-        :param acc_offset:
-        """
-        # Must switch to config mode to write out
-        if not (self.con.transmit(registers.BNO055_OPR_MODE_ADDR, 1, bytes([registers.OPERATION_MODE_CONFIG]))):
-            self.node.get_logger().error('Unable to set IMU into config mode')
-        sleep(0.025)
-        try:
-            self.con.transmit(registers.ACCEL_OFFSET_X_LSB_ADDR, 1, bytes([acc_offset.value[0] & 0xFF]))
-            self.con.transmit(registers.ACCEL_OFFSET_X_MSB_ADDR, 1, bytes([(acc_offset.value[0] >> 8) & 0xFF]))
-            self.con.transmit(registers.ACCEL_OFFSET_Y_LSB_ADDR, 1, bytes([acc_offset.value[1] & 0xFF]))
-            self.con.transmit(registers.ACCEL_OFFSET_Y_MSB_ADDR, 1, bytes([(acc_offset.value[1] >> 8) & 0xFF]))
-            self.con.transmit(registers.ACCEL_OFFSET_Z_LSB_ADDR, 1, bytes([acc_offset.value[2] & 0xFF]))
-            self.con.transmit(registers.ACCEL_OFFSET_Z_MSB_ADDR, 1, bytes([(acc_offset.value[2] >> 8) & 0xFF]))
-            return True
-        except Exception:  # noqa: B902
-            return False
 
     def set_calib_offsets(self, acc_offset, mag_offset, gyr_offset, mag_radius, acc_radius):
         """
@@ -417,6 +401,63 @@ class SensorService:
             return True
         except Exception:  # noqa: B902
             return False
+        
+    def set_calib_offset_acc(self, acc_offset: List[int]):
+        """
+        Write accelerometer calibration data (define as 16 bit signed hex).
+        """
+        # Must switch to config mode to write out
+        if not (self.con.transmit(registers.BNO055_OPR_MODE_ADDR, 1, bytes([registers.OPERATION_MODE_CONFIG]))):
+            self.node.get_logger().error('Unable to set IMU into config mode')
+        sleep(0.025)
+        try:
+            self.con.transmit(registers.ACCEL_OFFSET_X_LSB_ADDR, 1, bytes([acc_offset[0] & 0xFF]))
+            self.con.transmit(registers.ACCEL_OFFSET_X_MSB_ADDR, 1, bytes([(acc_offset[0] >> 8) & 0xFF]))
+            self.con.transmit(registers.ACCEL_OFFSET_Y_LSB_ADDR, 1, bytes([acc_offset[1] & 0xFF]))
+            self.con.transmit(registers.ACCEL_OFFSET_Y_MSB_ADDR, 1, bytes([(acc_offset[1] >> 8) & 0xFF]))
+            self.con.transmit(registers.ACCEL_OFFSET_Z_LSB_ADDR, 1, bytes([acc_offset[2] & 0xFF]))
+            self.con.transmit(registers.ACCEL_OFFSET_Z_MSB_ADDR, 1, bytes([(acc_offset[2] >> 8) & 0xFF]))
+            return True
+        except Exception:  # noqa: B902
+            return False
+        
+    def set_calib_offset_mag(self, mag_offset: List[int]):
+        """
+        Write magnetometer calibration data (define as 16 bit signed hex).
+        """
+        # Must switch to config mode to write out
+        if not (self.con.transmit(registers.BNO055_OPR_MODE_ADDR, 1, bytes([registers.OPERATION_MODE_CONFIG]))):
+            self.node.get_logger().error('Unable to set IMU into config mode')
+        sleep(0.025)
+        try:
+            self.con.transmit(registers.MAG_OFFSET_X_LSB_ADDR, 1, bytes([mag_offset[0] & 0xFF]))
+            self.con.transmit(registers.MAG_OFFSET_X_MSB_ADDR, 1, bytes([(mag_offset[0] >> 8) & 0xFF]))
+            self.con.transmit(registers.MAG_OFFSET_Y_LSB_ADDR, 1, bytes([mag_offset[1] & 0xFF]))
+            self.con.transmit(registers.MAG_OFFSET_Y_MSB_ADDR, 1, bytes([(mag_offset[1] >> 8) & 0xFF]))
+            self.con.transmit(registers.MAG_OFFSET_Z_LSB_ADDR, 1, bytes([mag_offset[2] & 0xFF]))
+            self.con.transmit(registers.MAG_OFFSET_Z_MSB_ADDR, 1, bytes([(mag_offset[2] >> 8) & 0xFF]))
+            return True
+        except Exception:  # noqa: B902
+            return False
+        
+    def set_calib_offset_gyr(self, gyr_offset: List[int]):
+        """
+        Write gyrometer calibration data (define as 16 bit signed hex).
+        """
+        # Must switch to config mode to write out
+        if not (self.con.transmit(registers.BNO055_OPR_MODE_ADDR, 1, bytes([registers.OPERATION_MODE_CONFIG]))):
+            self.node.get_logger().error('Unable to set IMU into config mode')
+        sleep(0.025)
+        try:
+            self.con.transmit(registers.GYRO_OFFSET_X_LSB_ADDR, 1, bytes([gyr_offset[0] & 0xFF]))
+            self.con.transmit(registers.GYRO_OFFSET_X_MSB_ADDR, 1, bytes([(gyr_offset[0] >> 8) & 0xFF]))
+            self.con.transmit(registers.GYRO_OFFSET_Y_LSB_ADDR, 1, bytes([gyr_offset[1] & 0xFF]))
+            self.con.transmit(registers.GYRO_OFFSET_Y_MSB_ADDR, 1, bytes([(gyr_offset[1] >> 8) & 0xFF]))
+            self.con.transmit(registers.GYRO_OFFSET_Z_LSB_ADDR, 1, bytes([gyr_offset[2] & 0xFF]))
+            self.con.transmit(registers.GYRO_OFFSET_Z_MSB_ADDR, 1, bytes([(gyr_offset[2] >> 8) & 0xFF]))
+            return True
+        except Exception:  # noqa: B902
+            return False
 
     def calibration_request_callback(self, request, response):
         if not (self.con.transmit(registers.BNO055_OPR_MODE_ADDR, 1, bytes([registers.OPERATION_MODE_CONFIG]))):
@@ -432,35 +473,56 @@ class SensorService:
     def unpackBytesToFloat(self, start, end):
         return float(struct.unpack('h', struct.pack('BB', start, end))[0])
     
-    def parametersCallback(self, parameters: list[Parameter]):
+    def parametersCallback(self, parameters: list[rclpy.parameter.Parameter]):
         result = SetParametersResult()
-        #node.declare_parameter('offset_acc', value=registers.DEFAULT_OFFSET_ACC)
-        # +/- 6400 units (1 unit = 1/16 uT)
-        #node.declare_parameter('offset_mag', value=registers.DEFAULT_OFFSET_MAG)
-        # +/- 2000 units up to 32000 (dps range dependent)               (1 unit = 1/16 dps)
-        #node.declare_parameter('offset_gyr', value=registers.DEFAULT_OFFSET_GYR)
-        #: +/- 2000 units (at max 2G)    (1 unit = 1 mg = 1 LSB = 0.01 m/s2)
-        # DEFAULT_OFFSET_ACC = [0xFFEC, 0x00A5, 0xFFE8]
-        #: +/- 6400 units                (1 unit = 1/16 uT)
-        # DEFAULT_OFFSET_MAG = [0xFFB4, 0xFE9E, 0x027D]
-        #: +/- 2000 units up to 32000 (dps range dependent)               (1 unit = 1/16 dps)
-        # DEFAULT_OFFSET_GYR = [0x0002, 0xFFFF, 0xFFFF]
         for param in parameters:
-            self.node.get_logger().debug(f"Current calibration data is {self.get_calib_data()}")
             if param.name == 'offset_acc':
-                if(self.test_offset_parameters(param.value, param.name)):
+                parameter_is_valid = self.test_offset_parameters(param.value.tolist(), param.name)
+                if(parameter_is_valid):
                     self.node.get_logger().info(f"Will attempt to set {param.name} to {param.value}")
-                    if(self.set_calib_offset_acc(param.value)):
+                    if(self.set_calib_offset_acc(param.value.tolist())):
                         result.successful = True
                         result.reason = f"Parameter {param.name} was set successfully."
                         self.node.get_logger().info(result.reason)
                     else:
-                        self.node.get_logger().warn(f"Could not write {param.name} with values {param.value} to EEPROM.")
+                        self.node.get_logger().warn(f"Could not write {param.name} to EEPROM.")
                         result.successful = False
-                        result.reason = f"Could not write {param.name} with values {param.value} to EEPROM."
+                        result.reason = f"Could not write {param.name} to EEPROM."
                 else:
                     result.successful = False
-                    result.reason = f"Parameter {param.name} was not provided correctly. Check warnings for details."
+                    result.reason = f"Parameter {param.name} was not provided correctly."
+                    self.node.get_logger().warn(result.reason)
+            elif param.name == 'offset_mag':
+                parameter_is_valid = self.test_offset_parameters(param.value.tolist(), param.name)
+                if(parameter_is_valid):
+                    self.node.get_logger().info(f"Will attempt to set {param.name} to {param.value}")
+                    if(self.set_calib_offset_mag(param.value.tolist())):
+                        result.successful = True
+                        result.reason = f"Parameter {param.name} was set successfully."
+                        self.node.get_logger().info(result.reason)
+                    else:
+                        self.node.get_logger().warn(f"Could not write {param.name} to EEPROM.")
+                        result.successful = False
+                        result.reason = f"Could not write {param.name} to EEPROM."
+                else:
+                    result.successful = False
+                    result.reason = f"Parameter {param.name} was not provided correctly."
+                    self.node.get_logger().warn(result.reason)
+            elif param.name == 'offset_gyr':
+                parameter_is_valid = self.test_offset_parameters(param.value.tolist(), param.name)
+                if(parameter_is_valid):
+                    self.node.get_logger().info(f"Will attempt to set {param.name} to {param.value}")
+                    if(self.set_calib_offset_gyr(param.value.tolist())):
+                        result.successful = True
+                        result.reason = f"Parameter {param.name} was set successfully."
+                        self.node.get_logger().info(result.reason)
+                    else:
+                        self.node.get_logger().warn(f"Could not write {param.name} to EEPROM.")
+                        result.successful = False
+                        result.reason = f"Could not write {param.name} to EEPROM."
+                else:
+                    result.successful = False
+                    result.reason = f"Parameter {param.name} was not provided correctly."
                     self.node.get_logger().warn(result.reason)
             else:
                 result.successful = False
